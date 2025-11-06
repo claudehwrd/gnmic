@@ -261,6 +261,11 @@ func (a *App) StartTargetsManager(ctx context.Context) {
 				select {
 				case rsp := <-rspChan:
 					subscribeResponseReceivedCounter.WithLabelValues(t.Config.Name, rsp.SubscriptionConfig.Name).Add(1)
+					// Count individual metrics (updates and deletes) in the response
+					if updateResp, ok := rsp.Response.Response.(*gnmi.SubscribeResponse_Update); ok {
+						numMetrics := len(updateResp.Update.GetUpdate()) + len(updateResp.Update.GetDelete())
+						subscribeMetricsReceivedCounter.WithLabelValues(t.Config.Name, rsp.SubscriptionConfig.Name).Add(float64(numMetrics))
+					}
 					if a.Config.Debug {
 						a.Logger.Printf("target %q: gNMI Subscribe Response: %+v", t.Config.Name, rsp)
 					}
