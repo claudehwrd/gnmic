@@ -36,6 +36,13 @@ var subscribeResponseFailedCounter = prometheus.NewCounterVec(prometheus.Counter
 	Help:      "Total number of failed subscribe requests",
 }, []string{"source", "subscription"})
 
+var subscribeMetricsReceivedCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
+	Namespace: "gnmic",
+	Subsystem: "subscribe",
+	Name:      "number_of_received_metrics_total",
+	Help:      "Total number of individual metrics (updates and deletes) received from subscriptions",
+}, []string{"source", "subscription"})
+
 // target
 var targetUPMetric = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 	Namespace: "gnmic",
