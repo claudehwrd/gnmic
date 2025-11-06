@@ -29,6 +29,7 @@ import (
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/config"
+	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/lockers"
 )
 
@@ -72,6 +73,11 @@ func (a *App) newAPIServer() (*http.Server, error) {
 		a.reg.MustRegister(subscribeResponseReceivedCounter)
 		a.reg.MustRegister(subscribeResponseFailedCounter)
 		a.reg.MustRegister(subscribeMetricsReceivedCounter)
+		// Register event processor metrics
+		err := formatters.RegisterProcessorMetrics(a.reg)
+		if err != nil {
+			a.Logger.Printf("failed to register event processor metrics: %v", err)
+		}
 		a.registerTargetMetrics()
 		go a.startClusterMetrics()
 	}
