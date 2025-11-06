@@ -163,7 +163,8 @@ func MakeEventProcessors(
 				if err != nil {
 					return nil, fmt.Errorf("failed initializing event processor '%s' of type='%s': %w", epName, epType, err)
 				}
-				evps[i] = ep
+				// Wrap the processor with instrumentation to collect performance metrics
+				evps[i] = NewInstrumentedProcessor(ep, epName, epType, logger)
 				logger.Printf("added event processor '%s' of type=%s to output", epName, epType)
 				continue
 			}
