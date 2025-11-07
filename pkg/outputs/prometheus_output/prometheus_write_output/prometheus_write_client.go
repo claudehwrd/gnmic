@@ -64,11 +64,17 @@ func (p *promWriteOutput) writer(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			// Update buffer utilization on every write interval
+			bufferUtilization := float64(len(p.timeSeriesCh)) / float64(p.cfg.BufferSize)
+			prometheusWriteBufferUtilization.WithLabelValues(p.cfg.Name).Set(bufferUtilization)
 			if p.cfg.Debug {
 				p.logger.Printf("write interval reached, writing to remote")
 			}
 			p.write(ctx)
 		case <-p.buffDrainCh:
+			// Update buffer utilization when buffer is being drained
+			bufferUtilization := float64(len(p.timeSeriesCh)) / float64(p.cfg.BufferSize)
+			prometheusWriteBufferUtilization.WithLabelValues(p.cfg.Name).Set(bufferUtilization)
 			if p.cfg.Debug {
 				p.logger.Printf("buffer full, writing to remote")
 			}
