@@ -112,6 +112,7 @@ type config struct {
 	NumWorkers             int      `mapstructure:"num-workers,omitempty" json:"num-workers,omitempty"`
 	NumWriters             int      `mapstructure:"num-writers,omitempty" json:"num-writers,omitempty"`
 	EnableMetrics          bool     `mapstructure:"enable-metrics,omitempty" json:"enable-metrics,omitempty"`
+	DebugDumpFailedWrites  string   `mapstructure:"debug-dump-failed-writes,omitempty" json:"debug-dump-failed-writes,omitempty"`
 }
 
 type auth struct {
