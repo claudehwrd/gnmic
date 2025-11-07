@@ -11,10 +11,13 @@ package prometheus_write_output
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"sort"
 	"time"
 
@@ -126,6 +129,10 @@ WRITE:
 			if err != nil {
 				if p.cfg.Debug {
 					p.logger.Print(err)
+				}
+				// Dump failed batch to disk if debug dump is enabled
+				if p.cfg.DebugDumpFailedWrites != "" {
+					p.dumpFailedWrite(chunk, err)
 				}
 				continue
 			}
@@ -293,4 +300,44 @@ func (p *promWriteOutput) makeHTTPRequest(ctx context.Context, wr *prompb.WriteR
 	}
 
 	return httpReq, nil
+}
+
+// dumpFailedWrite writes a failed write batch to disk for debugging
+func (p *promWriteOutput) dumpFailedWrite(timeSeries []prompb.TimeSeries, writeErr error) {
+	// Create dump structure
+	dump := map[string]interface{}{
+		"timestamp":   time.Now().Format(time.RFC3339Nano),
+		"output_name": p.cfg.Name,
+		"error":       writeErr.Error(),
+		"batch_size":  len(timeSeries),
+		"time_series": timeSeries,
+	}
+
+	// Marshal to JSON with indentation
+	data, err := json.MarshalIndent(dump, "", "  ")
+	if err != nil {
+		p.logger.Printf("failed to marshal failed write dump: %v", err)
+		return
+	}
+
+	// Create filename with timestamp
+	filename := fmt.Sprintf("failed_write_%s_%d.json",
+		time.Now().Format("20060102_150405.000"),
+		time.Now().UnixNano())
+
+	// Ensure the directory exists
+	dumpDir := p.cfg.DebugDumpFailedWrites
+	if err := os.MkdirAll(dumpDir, 0755); err != nil {
+		p.logger.Printf("failed to create dump directory %s: %v", dumpDir, err)
+		return
+	}
+
+	// Write to file
+	fullPath := filepath.Join(dumpDir, filename)
+	if err := os.WriteFile(fullPath, data, 0644); err != nil {
+		p.logger.Printf("failed to write dump file %s: %v", fullPath, err)
+		return
+	}
+
+	p.logger.Printf("dumped failed write batch to %s", fullPath)
 }
