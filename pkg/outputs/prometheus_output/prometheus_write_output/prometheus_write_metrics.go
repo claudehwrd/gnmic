@@ -63,6 +63,20 @@ var prometheusWriteMetadataSendDuration = prometheus.NewGaugeVec(prometheus.Gaug
 	Help:      "gnmic prometheus_write output metadata send duration in ns",
 }, []string{"name"})
 
+var prometheusWriteNumberOfDroppedMsgs = prometheus.NewCounterVec(prometheus.CounterOpts{
+	Namespace: namespace,
+	Subsystem: subsystem,
+	Name:      "number_of_prometheus_write_msgs_dropped_total",
+	Help:      "Number of msgs dropped due to buffer full by gnmic prometheus_write output",
+}, []string{"name", "reason"})
+
+var prometheusWriteBufferUtilization = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	Namespace: namespace,
+	Subsystem: subsystem,
+	Name:      "buffer_utilization",
+	Help:      "Current utilization of the time series buffer (0-1)",
+}, []string{"name"})
+
 func initMetrics(name string) {
 	// data msgs metrics
 	prometheusWriteNumberOfSentMsgs.WithLabelValues(name).Add(0)
@@ -72,6 +86,9 @@ func initMetrics(name string) {
 	prometheusWriteNumberOfSentMetadataMsgs.WithLabelValues(name).Add(0)
 	prometheusWriteNumberOfFailSendMetadataMsgs.WithLabelValues(name, "").Add(0)
 	prometheusWriteMetadataSendDuration.WithLabelValues(name).Set(0)
+	// buffer metrics
+	prometheusWriteNumberOfDroppedMsgs.WithLabelValues(name, "").Add(0)
+	prometheusWriteBufferUtilization.WithLabelValues(name).Set(0)
 }
 
 func (p *promWriteOutput) registerMetrics() error {
@@ -101,6 +118,14 @@ func (p *promWriteOutput) registerMetrics() error {
 			return
 		}
 		if err = p.reg.Register(prometheusWriteMetadataSendDuration); err != nil {
+			p.logger.Printf("failed to register metric: %v", err)
+			return
+		}
+		if err = p.reg.Register(prometheusWriteNumberOfDroppedMsgs); err != nil {
+			p.logger.Printf("failed to register metric: %v", err)
+			return
+		}
+		if err = p.reg.Register(prometheusWriteBufferUtilization); err != nil {
 			p.logger.Printf("failed to register metric: %v", err)
 			return
 		}

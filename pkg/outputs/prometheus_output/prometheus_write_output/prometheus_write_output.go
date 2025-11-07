@@ -337,11 +337,20 @@ func (p *promWriteOutput) workerHandleEvent(ev *formatters.EventMsg) {
 		p.logger.Printf("got event to buffer: %+v", ev)
 	}
 	for _, pts := range p.mb.TimeSeriesFromEvent(ev) {
+		// Update buffer utilization metric
+		bufferUtilization := float64(len(p.timeSeriesCh)) / float64(p.cfg.BufferSize)
+		prometheusWriteBufferUtilization.WithLabelValues(p.cfg.Name).Set(bufferUtilization)
+
 		if len(p.timeSeriesCh) >= p.cfg.BufferSize {
 			if p.cfg.Debug {
 				p.logger.Printf("buffer size reached, triggering write")
 			}
-			p.buffDrainCh <- struct{}{}
+			// Try to trigger write, but don't block
+			select {
+			case p.buffDrainCh <- struct{}{}:
+			default:
+				// Write already triggered
+			}
 		}
 		// populate metadata cache
 		p.m.Lock()
@@ -354,11 +363,20 @@ func (p *promWriteOutput) workerHandleEvent(ev *formatters.EventMsg) {
 			Help:             defaultMetricHelp,
 		}
 		p.m.Unlock()
-		// write time series to buffer
+		// write time series to buffer (non-blocking)
 		if p.cfg.Debug {
 			p.logger.Printf("writing TimeSeries to buffer")
 		}
-		p.timeSeriesCh <- pts.TS
+		select {
+		case p.timeSeriesCh <- pts.TS:
+			// Successfully queued
+		default:
+			// Buffer full - drop and count
+			prometheusWriteNumberOfDroppedMsgs.WithLabelValues(p.cfg.Name, "buffer_full").Inc()
+			if p.cfg.Debug {
+				p.logger.Printf("dropping time series, buffer full")
+			}
+		}
 	}
 }
 
