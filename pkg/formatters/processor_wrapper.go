@@ -69,8 +69,8 @@ func (ip *InstrumentedProcessor) Apply(evs ...*EventMsg) []*EventMsg {
 	}()
 
 	// Record duration
-	duration := time.Since(start).Seconds()
-	processorDuration.WithLabelValues(ip.processorName, ip.processorType).Observe(duration)
+	duration := time.Since(start).Nanoseconds()
+	processorDuration.WithLabelValues(ip.processorName, ip.processorType).Observe(float64(duration))
 
 	// Capture memory stats after processing
 	var memAfter runtime.MemStats

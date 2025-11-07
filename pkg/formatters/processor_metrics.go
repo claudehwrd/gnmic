@@ -18,9 +18,9 @@ var (
 	processorDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "gnmic",
 		Subsystem: "event_processor",
-		Name:      "duration_seconds",
-		Help:      "Duration of event processor Apply() calls in seconds",
-		Buckets:   prometheus.ExponentialBuckets(0.000001, 2, 20), // 1µs to ~1s
+		Name:      "duration_ns",
+		Help:      "Duration of event processor Apply() calls in nanoseconds",
+		Buckets:   prometheus.ExponentialBuckets(1000, 2, 20), // 1µs to ~1s
 	}, []string{"processor_name", "processor_type"})
 
 	// processorEventsInput tracks the number of events entering each processor
