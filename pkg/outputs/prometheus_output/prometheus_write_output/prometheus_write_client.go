@@ -130,6 +130,8 @@ WRITE:
 				Timeseries: chunk,
 			})
 			if err != nil {
+				// Track the time series that were lost in this failed write attempt
+				prometheusWriteNumberOfDroppedMsgs.WithLabelValues(p.cfg.Name, "write_failed").Add(float64(chunkSize))
 				if p.cfg.Debug {
 					p.logger.Print(err)
 				}
