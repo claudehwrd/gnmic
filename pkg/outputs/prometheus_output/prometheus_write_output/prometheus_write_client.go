@@ -113,6 +113,12 @@ WRITE:
 	if numTS == 0 {
 		return
 	}
+	// Filter out invalid time series before sending
+	pts = p.filterInvalidTimeSeries(pts)
+	numTS = len(pts)
+	if numTS == 0 {
+		return
+	}
 	// sort timeSeries by timestamp
 	sort.Slice(pts, func(i, j int) bool {
 		return pts[i].Samples[0].Timestamp < pts[j].Samples[0].Timestamp
@@ -384,4 +390,47 @@ func (p *promWriteOutput) dumpFailedWrite(timeSeries []prompb.TimeSeries, writeE
 
 	p.logger.Printf("dumped failed write batch to %s (size: %d bytes, %d time series)",
 		fullPath, fileInfo.Size(), len(timeSeries))
+}
+
+// filterInvalidTimeSeries removes time series that would cause duplicate sample errors
+// Currently filters: components_component_transceiver_state_enabled without component_name label
+func (p *promWriteOutput) filterInvalidTimeSeries(timeSeries []prompb.TimeSeries) []prompb.TimeSeries {
+	filtered := make([]prompb.TimeSeries, 0, len(timeSeries))
+	droppedCount := 0
+
+	for _, ts := range timeSeries {
+		// Get the metric name
+		var metricName string
+		var hasComponentName bool
+
+		for _, label := range ts.Labels {
+			if label.Name == "__name__" {
+				metricName = label.Value
+			}
+			if label.Name == "component_name" && label.Value != "" {
+				hasComponentName = true
+			}
+		}
+
+		// Drop components_component_transceiver_state_enabled if it has no component_name
+		if metricName == "components_component_transceiver_state_enabled" && !hasComponentName {
+			droppedCount++
+			if p.cfg.Debug {
+				p.logger.Printf("dropping invalid time series: %s without component_name", metricName)
+			}
+			continue
+		}
+
+		// Keep this time series
+		filtered = append(filtered, ts)
+	}
+
+	if droppedCount > 0 {
+		prometheusWriteNumberOfDroppedMsgs.WithLabelValues(p.cfg.Name, "invalid_labels").Add(float64(droppedCount))
+		if p.cfg.Debug {
+			p.logger.Printf("filtered out %d invalid time series", droppedCount)
+		}
+	}
+
+	return filtered
 }
