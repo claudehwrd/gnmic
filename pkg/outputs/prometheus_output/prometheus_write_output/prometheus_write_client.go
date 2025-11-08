@@ -312,13 +312,41 @@ func (p *promWriteOutput) makeHTTPRequest(ctx context.Context, wr *prompb.WriteR
 
 // dumpFailedWrite writes a failed write batch to disk for debugging
 func (p *promWriteOutput) dumpFailedWrite(timeSeries []prompb.TimeSeries, writeErr error) {
+	// Convert protobuf time series to a JSON-friendly format
+	type TimeSeriesJSON struct {
+		Labels  map[string]string `json:"labels"`
+		Samples []struct {
+			Timestamp int64   `json:"timestamp_ms"`
+			Value     float64 `json:"value"`
+		} `json:"samples"`
+	}
+
+	jsonTimeSeries := make([]TimeSeriesJSON, len(timeSeries))
+	for i, ts := range timeSeries {
+		labels := make(map[string]string)
+		for _, lbl := range ts.Labels {
+			labels[lbl.Name] = lbl.Value
+		}
+		jsonTimeSeries[i].Labels = labels
+
+		jsonTimeSeries[i].Samples = make([]struct {
+			Timestamp int64   `json:"timestamp_ms"`
+			Value     float64 `json:"value"`
+		}, len(ts.Samples))
+
+		for j, sample := range ts.Samples {
+			jsonTimeSeries[i].Samples[j].Timestamp = sample.Timestamp
+			jsonTimeSeries[i].Samples[j].Value = sample.Value
+		}
+	}
+
 	// Create dump structure
 	dump := map[string]interface{}{
 		"timestamp":   time.Now().Format(time.RFC3339Nano),
 		"output_name": p.cfg.Name,
 		"error":       writeErr.Error(),
 		"batch_size":  len(timeSeries),
-		"time_series": timeSeries,
+		"time_series": jsonTimeSeries,
 	}
 
 	// Marshal to JSON with indentation
@@ -347,5 +375,13 @@ func (p *promWriteOutput) dumpFailedWrite(timeSeries []prompb.TimeSeries, writeE
 		return
 	}
 
-	p.logger.Printf("dumped failed write batch to %s", fullPath)
+	// Verify the file was written and get its size
+	fileInfo, err := os.Stat(fullPath)
+	if err != nil {
+		p.logger.Printf("WARNING: dump file written but cannot stat %s: %v", fullPath, err)
+		return
+	}
+
+	p.logger.Printf("dumped failed write batch to %s (size: %d bytes, %d time series)",
+		fullPath, fileInfo.Size(), len(timeSeries))
 }
