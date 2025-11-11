@@ -231,8 +231,8 @@ func (p *promWriteOutput) Write(ctx context.Context, rsp proto.Message, meta out
 		return
 	case p.msgChan <- outputs.NewProtoMsg(rsp, meta):
 	case <-wctx.Done():
-		// Track metrics dropped due to write timeout
-		prometheusWriteNumberOfDroppedMsgs.WithLabelValues(p.cfg.Name, "write_timeout").Inc()
+		// Track input message dropped due to write timeout
+		prometheusWriteInputMsgsDropped.WithLabelValues(p.cfg.Name, "input_timeout").Inc()
 		if p.cfg.Debug {
 			p.logger.Printf("writing expired after %s", p.cfg.Timeout)
 		}
